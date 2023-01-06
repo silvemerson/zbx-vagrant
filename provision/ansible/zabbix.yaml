@@ -1,0 +1,74 @@
+---
+- hosts: all
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: Instalando depedências
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg-agent
+        - software-properties-common
+        - snapd
+        - git
+        - vim
+        - python3-docker
+
+    - name: Copiando zabbix-server.conf 
+      copy:
+        src: files/multipath.conf
+        dest: /etc/multipath.conf
+        owner: root
+        group: root    
+
+    - name: restart multipathd
+      service:
+        name: multipathd
+        state: restarted  
+
+
+    - name: Instalando repositório Zabbix
+      ansible.builtin.apt:
+        deb: https://repo.zabbix.com/zabbix/6.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.0-4%2Bubuntu20.04_all.deb
+
+    - name: Instalando Zabbix
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - zabbix-server-mysql
+        - zabbix-frontend-php
+        - zabbix-apache-conf
+        - zabbix-sql-scripts
+        - zabbix-agent
+
+
+
+    - name: Importando base de dados
+      shell: zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql -uzabbix -pzabbix --database=zabbix -h 192.168.56.20 
+
+
+    - name: Copiando zabbix-server.conf 
+      copy:
+        src: files/zabbix_server.conf
+        dest: /etc/zabbix/zabbix_server.conf
+        owner: root
+        group: root    
+
+    - name: restart Zabbix services
+      service:
+        name: "{{ item }}"
+        state: restarted
+      with_items:
+        - zabbix-server
+        - zabbix-agent
+        - apache2
